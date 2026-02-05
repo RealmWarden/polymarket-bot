@@ -8,6 +8,16 @@ import { UserPositionInterface, UserActivityInterface } from '../interfaces/User
 const USER_ADDRESSES = ENV.USER_ADDRESSES;
 const TOO_OLD_TIMESTAMP = ENV.TOO_OLD_TIMESTAMP;
 const FETCH_INTERVAL = ENV.FETCH_INTERVAL;
+const MAX_RESOLUTION_HOURS = ENV.MAX_RESOLUTION_HOURS;
+
+// Interface for market info from CLOB API
+interface MarketInfo {
+    end_date_iso?: string;
+    question?: string;
+}
+
+// Cache for market end dates to avoid repeated API calls
+const marketEndDateCache: Map<string, Date | null> = new Map();
 
 if (!USER_ADDRESSES || USER_ADDRESSES.length === 0) {
     throw new Error('USER_ADDRESSES is not defined or empty');
@@ -146,6 +156,43 @@ const fetchTradeData = async (): Promise<void> => {
 
                 if (existingActivity) {
                     continue; // Already processed this trade
+                }
+
+                // Check market resolution time if MAX_RESOLUTION_HOURS is set
+                if (MAX_RESOLUTION_HOURS > 0 && activity.conditionId) {
+                    let endDate = marketEndDateCache.get(activity.conditionId);
+
+                    // Fetch market info if not cached
+                    if (endDate === undefined) {
+                        try {
+                            const marketUrl = `https://clob.polymarket.com/markets/${activity.conditionId}`;
+                            const marketInfo = await fetchData<MarketInfo>(marketUrl);
+
+                            if (marketInfo?.end_date_iso) {
+                                endDate = new Date(marketInfo.end_date_iso);
+                                marketEndDateCache.set(activity.conditionId, endDate);
+                                Logger.info(`Market "${activity.title}" resolves on ${endDate.toLocaleDateString()}`);
+                            } else {
+                                // No end date found, cache null to avoid repeated lookups
+                                marketEndDateCache.set(activity.conditionId, null);
+                                endDate = null;
+                            }
+                        } catch {
+                            // API error, skip caching so we can retry later
+                            endDate = null;
+                        }
+                    }
+
+                    // Skip if market resolves beyond our max hours
+                    if (endDate) {
+                        const hoursUntilResolution = (endDate.getTime() - Date.now()) / (60 * 60 * 1000);
+                        if (hoursUntilResolution > MAX_RESOLUTION_HOURS) {
+                            Logger.info(
+                                `⏭️ Skipping trade: "${activity.title}" resolves in ${Math.round(hoursUntilResolution)} hours (max: ${MAX_RESOLUTION_HOURS}h)`
+                            );
+                            continue;
+                        }
+                    }
                 }
 
                 // Save new trade to database

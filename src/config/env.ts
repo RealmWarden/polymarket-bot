@@ -361,4 +361,6 @@ export const ENV = {
     USDC_CONTRACT_ADDRESS: process.env.USDC_CONTRACT_ADDRESS as string,
     // Preview mode - when true, log trades but don't execute
     PREVIEW_MODE: process.env.PREVIEW_MODE === 'true',
+    // Max resolution hours - only copy trades for markets resolving within this many hours (0 = disabled)
+    MAX_RESOLUTION_HOURS: parseInt(process.env.MAX_RESOLUTION_HOURS || '0', 10),
 };
