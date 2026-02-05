@@ -230,9 +230,9 @@ const parseUserAddresses = (input: string): string[] => {
             console.error('   • Polymarket Leaderboard: https://polymarket.com/leaderboard');
             console.error('   • Predictfolio: https://predictfolio.com\n');
             console.error('Example: USER_ADDRESSES=\'0x7c3db723f1d4d8cb9c550095203b686cb11e5c6b\'\n');
-                        throw new ConfigurationError(
-                            `Invalid Ethereum address in USER_ADDRESSES: ${addr}`
-                        );
+            throw new ConfigurationError(
+                `Invalid Ethereum address in USER_ADDRESSES: ${addr}`
+            );
         }
     }
     return addresses;
@@ -359,4 +359,6 @@ export const ENV = {
     MONGO_URI: process.env.MONGO_URI as string,
     RPC_URL: process.env.RPC_URL as string,
     USDC_CONTRACT_ADDRESS: process.env.USDC_CONTRACT_ADDRESS as string,
+    // Preview mode - when true, log trades but don't execute
+    PREVIEW_MODE: process.env.PREVIEW_MODE === 'true',
 };

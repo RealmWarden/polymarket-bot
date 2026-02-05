@@ -15,6 +15,7 @@ const PROXY_WALLET = ENV.PROXY_WALLET;
 const TRADE_AGGREGATION_ENABLED = ENV.TRADE_AGGREGATION_ENABLED;
 const TRADE_AGGREGATION_WINDOW_SECONDS = ENV.TRADE_AGGREGATION_WINDOW_SECONDS;
 const TRADE_AGGREGATION_MIN_TOTAL_USD = TRADING_CONSTANTS.TRADE_AGGREGATION_MIN_TOTAL_USD;
+const PREVIEW_MODE = ENV.PREVIEW_MODE;
 
 // Create activity models for each user
 const userActivityModels = USER_ADDRESSES.map((address) => ({
@@ -208,17 +209,27 @@ const doTrading = async (clobClient: ClobClient, trades: TradeWithUser[]): Promi
 
         Logger.balance(my_balance, user_balance, trade.userAddress);
 
-        // Execute the trade
-        await postOrder(
-            clobClient,
-            trade.side === 'BUY' ? 'buy' : 'sell',
-            my_position,
-            user_position,
-            trade,
-            my_balance,
-            user_balance,
-            trade.userAddress
-        );
+        // Check preview mode before executing
+        if (PREVIEW_MODE) {
+            console.log(`\n🔍 [PREVIEW MODE] Would execute trade:`);
+            console.log(`   Side: ${trade.side}`);
+            console.log(`   Asset: ${trade.asset}`);
+            console.log(`   Amount: $${trade.usdcSize?.toFixed(2)}`);
+            console.log(`   Price: ${trade.price}`);
+            console.log(`   ⚠️  Trade NOT executed (preview mode enabled)\n`);
+        } else {
+            // Execute the trade
+            await postOrder(
+                clobClient,
+                trade.side === 'BUY' ? 'buy' : 'sell',
+                my_position,
+                user_position,
+                trade,
+                my_balance,
+                user_balance,
+                trade.userAddress
+            );
+        }
 
         Logger.separator();
     }
@@ -280,17 +291,27 @@ const doAggregatedTrading = async (
             side: agg.side as TradeSide,
         };
 
-        // Execute the aggregated trade
-        await postOrder(
-            clobClient,
-            agg.side === 'BUY' ? 'buy' : 'sell',
-            my_position,
-            user_position,
-            syntheticTrade,
-            my_balance,
-            user_balance,
-            agg.userAddress
-        );
+        // Check preview mode before executing
+        if (PREVIEW_MODE) {
+            console.log(`\n🔍 [PREVIEW MODE] Would execute AGGREGATED trade:`);
+            console.log(`   Side: ${agg.side}`);
+            console.log(`   Market: ${agg.slug || agg.asset}`);
+            console.log(`   Total Amount: $${agg.totalUsdcSize.toFixed(2)}`);
+            console.log(`   Combined from: ${agg.trades.length} trades`);
+            console.log(`   ⚠️  Trade NOT executed (preview mode enabled)\n`);
+        } else {
+            // Execute the aggregated trade
+            await postOrder(
+                clobClient,
+                agg.side === 'BUY' ? 'buy' : 'sell',
+                my_position,
+                user_position,
+                syntheticTrade,
+                my_balance,
+                user_balance,
+                agg.userAddress
+            );
+        }
 
         Logger.separator();
     }
