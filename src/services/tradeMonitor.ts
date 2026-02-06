@@ -19,6 +19,10 @@ interface MarketInfo {
 // Cache for market end dates to avoid repeated API calls
 const marketEndDateCache: Map<string, Date | null> = new Map();
 
+// Track which market outcomes we've already copied this session
+// Key format: "conditionId:outcomeIndex" - prevents copying multiple trades on same outcome
+const copiedOutcomes: Set<string> = new Set();
+
 if (!USER_ADDRESSES || USER_ADDRESSES.length === 0) {
     throw new Error('USER_ADDRESSES is not defined or empty');
 }
@@ -165,6 +169,16 @@ const fetchTradeData = async (): Promise<void> => {
                     continue; // Already processed this trade
                 }
 
+                // ONE POSITION PER OUTCOME: Skip if we've already copied a trade for this outcome
+                // This prevents copying multiple buys when a trader averages down
+                const outcomeKey = `${activity.conditionId}:${activity.outcomeIndex}`;
+                if (copiedOutcomes.has(outcomeKey)) {
+                    Logger.info(
+                        `⏭️ Skipping duplicate: Already have position on "${activity.title}" (${activity.outcome})`
+                    );
+                    continue;
+                }
+
                 // Check market resolution time if MAX_RESOLUTION_HOURS is set
                 if (MAX_RESOLUTION_HOURS > 0 && activity.conditionId) {
                     let endDate = marketEndDateCache.get(activity.conditionId);
@@ -230,7 +244,11 @@ const fetchTradeData = async (): Promise<void> => {
                 });
 
                 await newActivity.save();
-                Logger.info(`New trade detected for ${address.slice(0, 6)}...${address.slice(-4)}`);
+
+                // Mark this outcome as copied so we don't copy more trades on the same bet
+                copiedOutcomes.add(outcomeKey);
+
+                Logger.info(`New trade detected for ${address.slice(0, 6)}...${address.slice(-4)}: ${activity.title} (${activity.outcome})`);
             }
 
             // Also fetch and update positions
