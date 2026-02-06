@@ -92,7 +92,7 @@ const postOrder = async (
     userAddress: string
 ): Promise<void> => {
     const UserActivity = getUserActivityModel(userAddress);
-    
+
     // Merge strategy
     if (condition === 'merge') {
         Logger.info('Executing MERGE strategy...');
@@ -127,19 +127,19 @@ const postOrder = async (
             }, orderBook.bids[0]!);
 
             Logger.info(`Best bid: ${maxPriceBid.size} @ $${maxPriceBid.price}`);
-            
+
             // Determine order size based on available liquidity
-            const orderSize = remaining <= parseFloat(maxPriceBid.size) 
-                ? remaining 
+            const orderSize = remaining <= parseFloat(maxPriceBid.size)
+                ? remaining
                 : parseFloat(maxPriceBid.size);
-            
+
             const orderArgs = {
                 side: Side.SELL,
                 tokenID: my_position.asset,
                 amount: orderSize,
                 price: parseFloat(maxPriceBid.price),
             };
-            
+
             // Order args logged internally
             const signedOrder = await clobClient.createMarketOrder(orderArgs);
             const resp = await clobClient.postOrder(signedOrder, OrderType.FOK);
@@ -408,11 +408,19 @@ const postOrder = async (
         }
 
         // Cap sell amount to available position size
-        if (remaining > my_position.size) {
-            Logger.warning(
-                `⚠️  Calculated sell ${remaining.toFixed(2)} tokens > Your position ${my_position.size.toFixed(2)} tokens`
-            );
-            Logger.warning(`Capping to maximum available: ${my_position.size.toFixed(2)} tokens`);
+        // If calculated sell is >= 90% of position, close the FULL position to avoid rounding issues
+        const closingThreshold = my_position.size * 0.90;
+        if (remaining >= closingThreshold) {
+            if (remaining > my_position.size) {
+                Logger.info(
+                    `💡 Calculated sell ${remaining.toFixed(2)} tokens > Your position ${my_position.size.toFixed(2)} tokens`
+                );
+            } else {
+                Logger.info(
+                    `💡 Calculated sell ${remaining.toFixed(2)} tokens is ≥90% of position ${my_position.size.toFixed(2)} tokens`
+                );
+            }
+            Logger.info(`✅ Closing FULL position: ${my_position.size.toFixed(2)} tokens`);
             remaining = my_position.size;
         }
 
