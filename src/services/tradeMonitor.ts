@@ -144,7 +144,8 @@ const fetchTradeData = async (): Promise<void> => {
             // Process each activity
             for (const activity of activities) {
                 // Skip if too old - calculate cutoff timestamp (TOO_OLD_TIMESTAMP is in hours)
-                const cutoffTimestamp = Date.now() - (TOO_OLD_TIMESTAMP * 60 * 60 * 1000);
+                // Note: activity.timestamp from API is in SECONDS, Date.now() is in MILLISECONDS
+                const cutoffTimestamp = Math.floor(Date.now() / 1000) - (TOO_OLD_TIMESTAMP * 60 * 60);
                 if (activity.timestamp < cutoffTimestamp) {
                     continue;
                 }
