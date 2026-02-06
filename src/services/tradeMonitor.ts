@@ -143,6 +143,12 @@ const fetchTradeData = async (): Promise<void> => {
 
             // Process each activity
             for (const activity of activities) {
+                // CRITICAL: Skip trades that occurred BEFORE the bot started
+                // This ensures we only copy LIVE trades, not historical ones at stale prices
+                if (botStartTime > 0 && activity.timestamp < botStartTime) {
+                    continue; // Trade happened before bot started - ignore it
+                }
+
                 // Skip if too old - calculate cutoff timestamp (TOO_OLD_TIMESTAMP is in hours)
                 // Note: activity.timestamp from API is in SECONDS, Date.now() is in MILLISECONDS
                 const cutoffTimestamp = Math.floor(Date.now() / 1000) - (TOO_OLD_TIMESTAMP * 60 * 60);
@@ -279,6 +285,8 @@ const fetchTradeData = async (): Promise<void> => {
 let isFirstRun = true;
 // Track if monitor should continue running
 let isRunning = true;
+// Bot start time (in seconds) - only process trades AFTER this timestamp
+let botStartTime: number = 0;
 
 /**
  * Stop the trade monitor gracefully
@@ -297,9 +305,13 @@ const tradeMonitor = async (): Promise<void> => {
     Logger.success(`Monitoring ${USER_ADDRESSES.length} trader(s) every ${FETCH_INTERVAL}s`);
     Logger.separator();
 
-    // On first run, mark all existing historical trades as already processed
+    // On first run, record the start time and mark existing trades as processed
     if (isFirstRun) {
-        Logger.info('First run: marking all historical trades as processed...');
+        // CRITICAL: Record start time - only process trades AFTER this moment
+        botStartTime = Math.floor(Date.now() / 1000);
+        Logger.info(`Bot started at timestamp ${botStartTime}. Will only copy trades after this time.`);
+
+        // Also mark any existing DB trades as processed
         for (const { address, UserActivity } of userModels) {
             const count = await UserActivity.updateMany(
                 { [DB_FIELDS.BOT_EXECUTED]: false },
@@ -317,7 +329,7 @@ const tradeMonitor = async (): Promise<void> => {
             }
         }
         isFirstRun = false;
-        Logger.success('\nHistorical trades processed. Now monitoring for new trades only.');
+        Logger.success('\nNow monitoring for NEW trades only (ignoring historical trades).');
         Logger.separator();
     }
 
